@@ -1,15 +1,23 @@
 /*
-   Game Logic Server for MUD (Final Production Version)
-   --------------------------------------------------
-   Compile with: gcc -o dungeon dungeon.c -lmosquitto
+    Game Logic Server for MUD (Final Production Version)
+    --------------------------------------------------
+    ***Reference***
+   
+    If you want to update exe:
+    Compile with: gcc -o dungeon dungeon.c -lmosquitto
 
-   This server listens on TCP port 12345 for movement commands (n, s, e, w)
-   from a client. It processes the dungeon logic and sends back room descriptions
-   via the TCP socket. It also publishes the room description to the MQTT topic
-   "dungeon/room" using the Mosquitto library. In addition, it prints:
-     - The move received,
-     - The current room (ID and description)
-   to the terminal.
+    This server listens on TCP port 12345 for movement commands (n, s, e, w)
+    from a client. Make sure you are listed at the right port to make it work
+    the processes of the dungeon logic and sends back room descriptions to work
+    via the TCP socket. 
+   
+    It also publishes the room description to the MQTT topic
+    "dungeon/room" using the Mosquitto library. 
+   
+    In addition, it prints:
+      - The move received on the terminal, so you can check the whole description,
+      - The current room (ID and description)
+        to the terminal.
 */
 
 #include <stdio.h>
@@ -249,7 +257,7 @@ int main(void) {
             send(client_fd, buffer, strlen(buffer), 0);
             mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(buffer), buffer, 0, false);
             // Print the room description in the terminal.
-            printf("Entered Room %d: %s", dungeon[currentRoom].id, buffer);
+            printf(dungeon[currentRoom].id, buffer);
             fflush(stdout);
             if (dungeon[currentRoom].type == ROOM_TYPE_TREASURE) {
                 const char *winMsg = "Treasure found! Game Over.";
