@@ -1,23 +1,16 @@
 /*
-    Game Logic Server for MUD (Final Production Version)
-    --------------------------------------------------
-    ***Reference***
-   
-    If you want to update exe:
-    Compile with: gcc -o dungeon dungeon.c -lmosquitto
+   Game Logic Server for MUD (Final Production Version)
+   --------------------------------------------------
+   Compile with: gcc -o dungeon dungeon.c -lmosquitto
 
-    This server listens on TCP port 12345 for movement commands (n, s, e, w)
-    from a client. Make sure you are listed at the right port to make it work
-    the processes of the dungeon logic and sends back room descriptions to work
-    via the TCP socket. 
+   This server listens on TCP port 12345 for movement commands (n, s, e, w)
+   from a client. It processes the dungeon logic and sends back room descriptions
+   via the TCP socket. It also publishes the room description to the MQTT topic
+   "dungeon/room" using the Mosquitto library.
    
-    It also publishes the room description to the MQTT topic
-    "dungeon/room" using the Mosquitto library. 
-   
-    In addition, it prints:
-      - The move received on the terminal, so you can check the whole description,
-      - The current room (ID and description)
-        to the terminal.
+   In addition, it prints to the terminal:
+     - The move received.
+     - The current room's ID and description after each move.
 */
 
 #include <stdio.h>
@@ -30,7 +23,7 @@
 #include <errno.h>
 
 #define PORT 12345
-#define MQTT_BROKER "34.59.23.158"  // Replace with your GCP external IP
+#define MQTT_BROKER "GCP"  // Replace with your GCP external IP
 #define MQTT_PORT 1883
 #define MQTT_TOPIC "dungeon/room"
 
@@ -226,23 +219,12 @@ int main(void) {
 
         int nextRoom = currentRoom;
         switch (command) {
-            case 'n': case 'N':
-                nextRoom = dungeon[currentRoom].north;
-                break;
-            case 's': case 'S':
-                nextRoom = dungeon[currentRoom].south;
-                break;
-            case 'e': case 'E':
-                nextRoom = dungeon[currentRoom].east;
-                break;
-            case 'w': case 'W':
-                nextRoom = dungeon[currentRoom].west;
-                break;
-            case 'q': case 'Q':
-                quit = 1;
-                break;
-            default:
-                break;
+            case 'n': case 'N': nextRoom = dungeon[currentRoom].north; break;
+            case 's': case 'S': nextRoom = dungeon[currentRoom].south; break;
+            case 'e': case 'E': nextRoom = dungeon[currentRoom].east;  break;
+            case 'w': case 'W': nextRoom = dungeon[currentRoom].west;  break;
+            case 'q': case 'Q': quit = 1; break;
+            default: break;
         }
         if (nextRoom == -1) {
             const char *msg = "No path in that direction!";
@@ -256,8 +238,8 @@ int main(void) {
             snprintf(buffer, sizeof(buffer), "%s\n", dungeon[currentRoom].description);
             send(client_fd, buffer, strlen(buffer), 0);
             mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(buffer), buffer, 0, false);
-            // Print the room description in the terminal.
-            printf(dungeon[currentRoom].id, buffer);
+            // Print the entered room information.
+            //printf("Entered Room %d: %s", dungeon[currentRoom].id, buffer);
             fflush(stdout);
             if (dungeon[currentRoom].type == ROOM_TYPE_TREASURE) {
                 const char *winMsg = "Treasure found! Game Over.";
