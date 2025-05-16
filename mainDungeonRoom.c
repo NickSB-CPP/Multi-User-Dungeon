@@ -4,7 +4,7 @@
 #include "room2.h"
 #include "room3.h"
 #include "room4.h"
-#include "room.h"  // for describe_room(), etc.
+#include "dungeonRoom.h"  // for describe_room(), etc.
 
 int main(void) {
     // Each Group, 10 Rooms
