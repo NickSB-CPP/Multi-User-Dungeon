@@ -1,55 +1,113 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "room1.h"
-#include "room2.h"
-#include "room3.h"
-#include "room4.h"
-#include "dungeonRoom.h"  // for describe_room(), etc.
+#include <ctype.h>
+#include "room.h"
 
-int main(void) {
-    // Each Group, 10 Rooms
-    Room** g1 = create_group1_rooms(); // group 1 (me)
-    Room** g2 = create_group2_rooms(); // group 2 (partner 1)
-    Room** g3 = create_group3_rooms(); // group 3 (partner 2)
-    Room** g4 = create_group4_rooms(); // group 4 (partner 3)
+#define ROOM_COUNT 10
 
-    // Connect rooms between groups
-    g1[9]->east = g2[0]; g2[0]->west = g1[9];
-    g2[9]->south = g3[0]; g3[0]->north = g2[9];
-    g3[9]->east = g4[0]; g4[0]->west = g3[9];
-    g4[9]->north = g1[0]; g1[0]->south = g4[9];
+Room* build_world(Room** winningRoom) {
+    Room* rooms[ROOM_COUNT];
 
-    // Start in room 0 of group 1
-    Room* current = g1[0];
-    char command;
+    // Create rooms with vague descriptions
+    const char* descriptions[ROOM_COUNT] = {
+        "The air is still. A faint hum echoes in the dark.",            // Room 0
+        "The floor is made of smooth stone, slightly damp.",            // Room 1
+        "Something scratches in the walls... or is it just wind?",      // Room 2
+        "A faint light glows behind the cracks.",                       // Room 3
+        "It smells like moss and cold metal.",                          // Room 4
+        "You feel watched. There's nothing around, or is there?",       // Room 5
+        "Shadows ripple across the walls.",                             // Room 6
+        "It's warm here. Too warm.",                                    // Room 7
+        "You step on something soft. It moves.",                        // Room 8
+        "A strange energy surrounds you... you've found something!"     // Room 9
+    };
+
+    for (int i = 0; i < ROOM_COUNT; i++) {
+        rooms[i] = create_room(descriptions[i]);
+    }
+
+    // Connect rooms according to your layout
+    connect_rooms(rooms[0], rooms[1], 'S');
+    connect_rooms(rooms[1], rooms[0], 'N');
+    connect_rooms(rooms[1], rooms[2], 'S');
+    connect_rooms(rooms[1], rooms[3], 'E');
+    connect_rooms(rooms[2], rooms[1], 'W');
+    connect_rooms(rooms[2], rooms[4], 'E');
+    connect_rooms(rooms[2], rooms[5], 'S');
+    connect_rooms(rooms[3], rooms[1], 'W');
+    connect_rooms(rooms[3], rooms[4], 'E');
+    connect_rooms(rooms[4], rooms[2], 'W');
+    connect_rooms(rooms[4], rooms[5], 'S');
+    connect_rooms(rooms[4], rooms[6], 'E');
+    connect_rooms(rooms[5], rooms[2], 'N');
+    connect_rooms(rooms[5], rooms[6], 'E');
+    connect_rooms(rooms[5], rooms[8], 'W');
+    connect_rooms(rooms[5], rooms[7], 'S');
+    connect_rooms(rooms[6], rooms[4], 'W');
+    connect_rooms(rooms[6], rooms[5], 'S');
+    connect_rooms(rooms[6], rooms[7], 'N');
+    connect_rooms(rooms[7], rooms[5], 'N');
+    connect_rooms(rooms[7], rooms[6], 'W');
+    connect_rooms(rooms[8], rooms[5], 'E');
+    connect_rooms(rooms[8], rooms[9], 'S'); // -> Winning path
+    connect_rooms(rooms[9], NULL, 'N'); // End room, no exits
+
+    *winningRoom = rooms[9]; // Return winning room pointer
+    return rooms[0]; // Start at Room 0
+}
+
+int main() {
+    char input;
+    Room* currentRoom;
+    Room* winningRoom;
+
+    currentRoom = build_world(&winningRoom);
 
     while (1) {
-        describe_room(current);
-        printf("\nMove (W=North, S=South, D=East, A=West, Q=Quit): ");
-        scanf(" %c", &command);
+        describe_room(currentRoom);
+        printf("Move with W/A/S/D, or Q to quit: ");
+        scanf(" %c", &input);
+        input = toupper(input);
 
-        switch (command) {
-            case 'W': case 'w':
-                if (current->north) current = current->north;
-                else printf("Blocked.\n");
+        if (currentRoom == winningRoom) {
+            printf("\n🎉 Congratulations! You have completed the maze!\n");
+            printf("Thanks for playing!\n");
+            printf("Press [R] to play again, or [Q] to quit: ");
+            scanf(" %c", &input);
+            input = toupper(input);
+            if (input == 'R') {
+                currentRoom = build_world(&winningRoom);
+                continue;
+            } else {
                 break;
-            case 'S': case 's':
-                if (current->south) current = current->south;
-                else printf("Blocked.\n");
+            }
+        }
+
+        switch (input) {
+            case 'W':
+                if (currentRoom->north) currentRoom = currentRoom->north;
+                else printf("Blocked path.\n");
                 break;
-            case 'A': case 'a':
-                if (current->west) current = current->west;
-                else printf("Blocked.\n");
+            case 'S':
+                if (currentRoom->south) currentRoom = currentRoom->south;
+                else printf("Blocked path.\n");
                 break;
-            case 'D': case 'd':
-                if (current->east) current = current->east;
-                else printf("Blocked.\n");
+            case 'A':
+                if (currentRoom->west) currentRoom = currentRoom->west;
+                else printf("Blocked path.\n");
                 break;
-            case 'Q': case 'q':
-                printf("Quitting...\n");
+            case 'D':
+                if (currentRoom->east) currentRoom = currentRoom->east;
+                else printf("Blocked path.\n");
+                break;
+            case 'Q':
+                printf("Thanks for playing!\n");
                 return 0;
             default:
                 printf("Invalid input.\n");
         }
     }
+
+    return 0;
 }
+//Congrats!
