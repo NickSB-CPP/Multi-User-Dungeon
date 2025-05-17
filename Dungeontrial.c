@@ -37,14 +37,30 @@ void setupDungeon(Room dungeon[]) {
 }
 
 int main(void) {
-    srand((unsigned int)time(NULL));
-    Room dungeon[100];
-    setupDungeon(dungeon);
-    int currentRoom = 0;
+srand((unsigned int)time(NULL));
+Room dungeon[100];
+setupDungeon(dungeon);
 
-    int portalB_dest = -1;
-    int portalC_dest = -1;
-    int portalD_dest = -1;
+// Randomize starting room
+int startingOptions[] = {0, 10, 20, 30};
+int currentRoom = startingOptions[rand() % 4];
+printf("Starting in Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+
+// Randomize portal destinations without duplicates
+int startRooms[] = {0, 10, 20, 30};
+for (int i = 3; i > 0; --i) {
+    int j = rand() % (i + 1);
+    int temp = startRooms[i];
+    startRooms[i] = startRooms[j];
+    startRooms[j] = temp;
+}
+int portalB_dest = startRooms[0];  // Portal from Room 19
+int portalC_dest = startRooms[1];  // Portal from Room 29
+int portalD_dest = startRooms[2];  // Portal from Room 35
+
+printf("Portal 19 → %d\n", portalB_dest);
+printf("Portal 29 → %d\n", portalC_dest);
+printf("Portal 35 → %d\n", portalD_dest);
 
     mosquitto_lib_init();
     struct mosquitto *mosq = mosquitto_new(NULL, true, NULL);
@@ -104,38 +120,24 @@ int main(void) {
             break;
         }
 
-    // Room B: 19 east portal
-if (currentRoom == 19 && command == 'e') {
-    if (portalB_dest == -1) {
-        int options[] = {0, 20, 30};
-        portalB_dest = options[rand() % 3];
-    }
+// Auto-teleport when entering connector portal rooms
+if (currentRoom == 19) {
     currentRoom = portalB_dest;
-    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+    printf("Teleported from Room 19 → %d: %s\n", currentRoom, dungeon[currentRoom].description);
     goto SEND_DESCRIPTION;
 }
-
-// Room C: 29 south portal
-if (currentRoom == 29 && command == 's') {
-    if (portalC_dest == -1) {
-        int options[] = {0, 10, 30};
-        portalC_dest = options[rand() % 3];
-    }
+if (currentRoom == 29) {
     currentRoom = portalC_dest;
-    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+    printf("Teleported from Room 29 → %d: %s\n", currentRoom, dungeon[currentRoom].description);
+    goto SEND_DESCRIPTION;
+}
+if (currentRoom == 35) {
+    currentRoom = portalD_dest;
+    printf("Teleported from Room 35 → %d: %s\n", currentRoom, dungeon[currentRoom].description);
     goto SEND_DESCRIPTION;
 }
 
-// Room D: 35 east portal
-if (currentRoom == 35 && command == 'e') {
-    if (portalD_dest == -1) {
-        int options[] = {0, 10, 20};
-        portalD_dest = options[rand() % 3];
-    }
-    currentRoom = portalD_dest;
-    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
-    goto SEND_DESCRIPTION;
-}
+
 
         int nextRoom = currentRoom;
         switch (command) {

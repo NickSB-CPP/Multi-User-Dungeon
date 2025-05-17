@@ -38,7 +38,7 @@ void setupRoomsB(Room dungeon[]) {
     dungeon[16].west = 15; dungeon[16].east = 17; dungeon[16].north = -1; dungeon[16].south = -1;
 
     dungeon[17].id = 17;
-    dungeon[17].type = ROOM_TYPE_NORMAL;
+    dungeon[17].type = ROOM_TYPE_TREASURE;
     strcpy(dungeon[17].description, "You step into a laboratory. Vials and wires cover every surface.");
     dungeon[17].west = 16; dungeon[17].east = 18; dungeon[17].north = -1; dungeon[17].south = -1;
 
