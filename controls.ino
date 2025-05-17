@@ -7,6 +7,7 @@ int speed_Adjust = 400; // speed of text scroll
 int rest_Time = 2000;    // resting time of text animation at edge of display
 
 //===== WiFi Credentials =====
+<<<<<<< HEAD
 const char* ssid = "iPhone (3)";
 const char* password = "7ehs17k64dx6j";
 
@@ -16,6 +17,17 @@ const uint16_t serverPort = 12345;
 
 //===== MQTT Broker Settings =====
 const char* mqttBroker = "35.188.222.48";
+=======
+const char* ssid = "wifi ssid";
+const char* password = "wifi pass";
+
+//===== Server (Game Logic) Settings =====
+const char* serverIP = "gcp ip";
+const uint16_t serverPort = 12345;
+
+//===== MQTT Broker Settings =====
+const char* mqttBroker = "gcp ip if broker shares same ip";
+>>>>>>> 266885c4a9a8c9afe37e185ff6424c99d916c07c
 const uint16_t mqttPort = 1883;
 const char* mqttTopic  = "dungeon/room";
 
