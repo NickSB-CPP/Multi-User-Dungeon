@@ -22,7 +22,7 @@ int getch(void) {
 }
 #endif
 
-#define MQTT_BROKER "35.226.70.79" // Update to your MQTT broker IP
+#define MQTT_BROKER "GCP IP" // Update to your MQTT broker IP
 #define MQTT_PORT 1883
 #define MQTT_TOPIC "dungeon/start"
 
