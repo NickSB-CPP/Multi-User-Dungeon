@@ -15,6 +15,8 @@
 
 extern void setupRoomsA(Room dungeon[]);
 extern void setupRoomsB(Room dungeon[]);
+extern void setupRoomsC(Room dungeon[]);
+extern void setupRoomsD(Room dungeon[]);
 
 void connectRooms(Room* dungeon, int from, char dir, int to) {
     switch (dir) {
@@ -28,8 +30,10 @@ void connectRooms(Room* dungeon, int from, char dir, int to) {
 void setupDungeon(Room dungeon[]) {
     setupRoomsA(dungeon);
     setupRoomsB(dungeon);
-    connectRooms(dungeon, 1, 'e', 10); // Connect Room A1 to Room B10
-    connectRooms(dungeon, 10, 'e', 11); // Additional room in B for movement
+    setupRoomsC(dungeon);
+    setupRoomsD(dungeon);
+    connectRooms(dungeon, 1, 'e', 10);
+    connectRooms(dungeon, 10, 'e', 11);
 }
 
 int main(void) {
@@ -37,6 +41,10 @@ int main(void) {
     Room dungeon[100];
     setupDungeon(dungeon);
     int currentRoom = 0;
+
+    int portalB_dest = -1;
+    int portalC_dest = -1;
+    int portalD_dest = -1;
 
     mosquitto_lib_init();
     struct mosquitto *mosq = mosquitto_new(NULL, true, NULL);
@@ -96,38 +104,62 @@ int main(void) {
             break;
         }
 
-        // Filter out newline or carriage return inputs
-        if (command == '\n' || command == '\r') {
-            continue;
-        }
+    // Room B: 19 east portal
+if (currentRoom == 19 && command == 'e') {
+    if (portalB_dest == -1) {
+        int options[] = {0, 20, 30};
+        portalB_dest = options[rand() % 3];
+    }
+    currentRoom = portalB_dest;
+    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+    goto SEND_DESCRIPTION;
+}
 
-        printf("Move received: %c\n", command);
-        fflush(stdout);
+// Room C: 29 south portal
+if (currentRoom == 29 && command == 's') {
+    if (portalC_dest == -1) {
+        int options[] = {0, 10, 30};
+        portalC_dest = options[rand() % 3];
+    }
+    currentRoom = portalC_dest;
+    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+    goto SEND_DESCRIPTION;
+}
+
+// Room D: 35 east portal
+if (currentRoom == 35 && command == 'e') {
+    if (portalD_dest == -1) {
+        int options[] = {0, 10, 20};
+        portalD_dest = options[rand() % 3];
+    }
+    currentRoom = portalD_dest;
+    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+    goto SEND_DESCRIPTION;
+}
 
         int nextRoom = currentRoom;
         switch (command) {
-            case 'n': case 'N': nextRoom = dungeon[currentRoom].north; break;
-            case 's': case 'S': nextRoom = dungeon[currentRoom].south; break;
-            case 'e': case 'E': nextRoom = dungeon[currentRoom].east;  break;
-            case 'w': case 'W': nextRoom = dungeon[currentRoom].west;  break;
-            case 'q': case 'Q': quit = 1; continue;
-            default:
-                printf("Ignored command: %d (%c)\n", command, command);
-                continue;
+            case 'n': nextRoom = dungeon[currentRoom].north; break;
+            case 's': nextRoom = dungeon[currentRoom].south; break;
+            case 'e': nextRoom = dungeon[currentRoom].east; break;
+            case 'w': nextRoom = dungeon[currentRoom].west; break;
+            case 'q': quit = 1; continue;
+            default: continue;
         }
 
         if (nextRoom == -1) {
             const char *msg = "No path in that direction!";
             send(client_fd, msg, strlen(msg), 0);
             mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(msg), msg, 0, false);
-            printf("Room message: %s\n", msg);
         } else {
-            currentRoom = nextRoom;
+    currentRoom = nextRoom;
+    printf("Entered Room %d: %s\n", currentRoom, dungeon[currentRoom].description);
+
+SEND_DESCRIPTION:
             char buffer[1024];
             snprintf(buffer, sizeof(buffer), "%s\n", dungeon[currentRoom].description);
             send(client_fd, buffer, strlen(buffer), 0);
             mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(buffer), buffer, 0, false);
-            printf("Entered Room %d: %s", dungeon[currentRoom].id, buffer);
 
             if (dungeon[currentRoom].type == ROOM_TYPE_TREASURE) {
                 const char *winMsg = "Treasure found! Game Over.";

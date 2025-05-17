@@ -29,8 +29,8 @@ void setupRoomsD(Room dungeon[]) {
 
     dungeon[35].id = 35;
     dungeon[35].type = ROOM_TYPE_CONNECTOR;
-    strcpy(dungeon[35].description, "A drone bay, now abandoned. Mechanical arms twitch occasionally.");
-    dungeon[35].north = 34; dungeon[35].south = 36; dungeon[35].east = -1; dungeon[35].west = -1;
+    strcpy(dungeon[35].description, "A drone bay, now abandoned. Mechanical arms twitch occasionally. A strange shimmering panel stands to the east.");
+    dungeon[35].north = 34; dungeon[35].south = 36; dungeon[35].east = -2; dungeon[35].west = -1;
 
     dungeon[36].id = 36;
     dungeon[36].type = ROOM_TYPE_NORMAL;
