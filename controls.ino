@@ -8,15 +8,15 @@ int rest_Time = 2000;    // resting time of text animation at edge of display
 
 //===== WiFi Credentials =====
 <<<<<<< HEAD
-const char* ssid = "iPhone (3)";
-const char* password = "7ehs17k64dx6j";
+const char* ssid = "";
+const char* password = "";
 
 //===== Server (Game Logic) Settings =====
-const char* serverIP = "35.188.222.48";
+const char* serverIP = "";
 const uint16_t serverPort = 12345;
 
 //===== MQTT Broker Settings =====
-const char* mqttBroker = "35.188.222.48";
+const char* mqttBroker = "";
 =======
 const char* ssid = "wifi ssid";
 const char* password = "wifi pass";
