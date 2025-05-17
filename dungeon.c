@@ -1,32 +1,16 @@
 /*
     Game Logic Server for MUD (Final Production Version)
     --------------------------------------------------
-    ***Reference***
-   
-    If you want to update exe:
-    Compile with: gcc -o dungeon dungeon.c map1.c map2.c map3.c connector.c -lmosquitto
-
+    Updated to randomize map selection at connectors and to remember previous states
+    so that you can back track exactly.
+    
+    Compile with:
+      gcc -o dungeon dungeon.c map1.c map2.c map3.c connector.c -lmosquitto
 
     This server listens on TCP port 12345 for movement commands (n, s, e, w)
-    from a client. Make sure you are listed at the right port to make it work
-    the processes of the dungeon logic and sends back room descriptions to work
-    via the TCP socket.
-   
-    It also publishes the room description to the MQTT topic
-    "dungeon/room" using the Mosquitto library.
-   
-    In addition, it prints:
-      - The move received on the terminal, so you can check the whole description,
-      - The current room (ID and description)
-        to the terminal.
-
-
-
-
-    What is this file?
-    The game logic, right now making different maps is WIP
+    from a client. When the player enters a connector room, the next map is chosen 
+    at random (if no history exists) or a previous map state is restored (if you have backtracked).
 */
-
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -37,22 +21,63 @@
 #include "map.h"
 #include "connector.h"
 
-// Define global room variables only here.
+// Global room variables.
 int currentRoom1 = 0;
 int currentRoom2 = 0;
 int currentRoom3 = 0;
 
 // Global active map variable.
 int activeMap = MAP1;
-
 #define TOTAL_MAPS 3
 
 // Global MQTT settings.
-const char* MQTT_BROKER = "GCP IP";  // Replace with your actual broker address.
+const char* MQTT_BROKER = "";  // Replace with your actual broker address.
 const int MQTT_PORT = 1883;
 const char* MQTT_TOPIC_ROOM = "dungeon/room";
 
 struct mosquitto *mosq = NULL;
+
+/*--- History stack for backtracking ---*/
+typedef struct {
+    int map;    // The previous map ID.
+    int room;   // The room (in that map) from which you left.
+} MapState;
+
+#define HISTORY_MAX 100
+MapState history[HISTORY_MAX];
+int historyTop = 0;  // index of next free slot
+
+// Push a state onto the history stack.
+void pushHistory(int map, int room) {
+    if(historyTop < HISTORY_MAX) {
+        history[historyTop].map = map;
+        history[historyTop].room = room;
+        historyTop++;
+    } else {
+        fprintf(stderr, "History overflow!\n");
+    }
+}
+
+// Pop a state from the history stack. Returns 1 if successful; 0 if empty.
+int popHistory(MapState *state) {
+    if(historyTop > 0) {
+        historyTop--;
+        *state = history[historyTop];
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Returns a random map id in [0, TOTAL_MAPS-1] that is different from currentMap.
+ */
+int get_random_map(int currentMap) {
+    int newMap;
+    do {
+        newMap = rand() % TOTAL_MAPS;
+    } while (newMap == currentMap);
+    return newMap;
+}
 
 // Publish message via MQTT.
 void publish_to_mqtt(const char* message) {
@@ -120,7 +145,7 @@ int main(void) {
     
     srand(time(NULL));
     
-    // Initialize with MAP1.
+    // Start in MAP1.
     activeMap = MAP1;
     init_map1();
     currentRoom1 = 0;
@@ -141,27 +166,48 @@ int main(void) {
         }
         
         printf("Received command: %s\n", buffer);
-        
-        // Process directional command.
+        // Process the directional command: n, s, e, or w.
         if (buffer[0]=='n' || buffer[0]=='e' || buffer[0]=='s' || buffer[0]=='w') {
+            // --- MAP1 branch ---
             if (activeMap == MAP1) {
                 int attemptedRoom = move_room1(currentRoom1, buffer[0]);
                 if (attemptedRoom != currentRoom1) {
                     currentRoom1 = attemptedRoom;
-                    // If MAP1 connector room is reached (assumed index 9), switch maps.
-                    if (currentRoom1 == 9) {
-                        printf("MAP1 connector reached. Switching to next map...\n");
-                        activeMap = (activeMap + 1) % TOTAL_MAPS;
-                        if (activeMap == MAP2) {
-                            init_map2(); currentRoom2 = 0;
+                    // Check for connector rooms:
+                    if (currentRoom1 == 9) {  
+                        // Forward connector in MAP1.
+                        printf("MAP1 forward connector reached.\n");
+                        pushHistory(MAP1, 9);  // Remember that you left MAP1 at room9.
+                        int newMap = get_random_map(MAP1);
+                        if (newMap == MAP2) {
+                            init_map2(); currentRoom2 = 0; activeMap = MAP2;
                             snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description2(0));
                             printf("Switched to MAP2: Starting at Room 0\n");
-                        } else if (activeMap == MAP3) {
-                            init_map3(); currentRoom3 = 0;
+                        } else if (newMap == MAP3) {
+                            init_map3(); currentRoom3 = 0; activeMap = MAP3;
                             snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(0));
                             printf("Switched to MAP3: Starting at Room 0\n");
                         }
-                    } else {
+                    } 
+                    else if (currentRoom1 == 0 && historyTop > 0) {  
+                        // In MAP1, room0 is designated for backward movement.
+                        MapState prev;
+                        if(popHistory(&prev)) {
+                            printf("MAP1 backward connector reached. Backtracking...\n");
+                            if (prev.map == MAP1) {
+                                init_map1(); currentRoom1 = prev.room; activeMap = MAP1;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description1(prev.room));
+                            } else if (prev.map == MAP2) {
+                                init_map2(); currentRoom2 = prev.room; activeMap = MAP2;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description2(prev.room));
+                            } else if (prev.map == MAP3) {
+                                init_map3(); currentRoom3 = prev.room; activeMap = MAP3;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(prev.room));
+                            }
+                        }
+                    } 
+                    else {
+                        // Normal move in MAP1.
                         snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description1(currentRoom1));
                         printf("MAP1: Moved to %s\n", map1_rooms[currentRoom1].name);
                     }
@@ -169,24 +215,45 @@ int main(void) {
                     snprintf(finalMsg, sizeof(finalMsg), "%s", get_fail_message1());
                     printf("MAP1: Move blocked. Message: %s\n", finalMsg);
                 }
-            } else if (activeMap == MAP2) {
+            }
+            // --- MAP2 branch ---
+            else if (activeMap == MAP2) {
                 int attemptedRoom = move_room2(currentRoom2, buffer[0]);
                 if (attemptedRoom != currentRoom2) {
                     currentRoom2 = attemptedRoom;
-                    // For MAP2, connector room is assumed at index 6.
-                    if (currentRoom2 == 6) {
-                        printf("MAP2 connector reached. Switching to next map...\n");
-                        activeMap = (activeMap + 1) % TOTAL_MAPS;
-                        if (activeMap == MAP3) {
-                            init_map3(); currentRoom3 = 0;
-                            snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(0));
-                            printf("Switched to MAP3: Starting at Room 0\n");
-                        } else if (activeMap == MAP1) {
-                            init_map1(); currentRoom1 = 0;
+                    if (currentRoom2 == 6) {  
+                        // Forward connector in MAP2.
+                        printf("MAP2 forward connector reached.\n");
+                        pushHistory(MAP2, 6);
+                        int newMap = get_random_map(MAP2);
+                        if (newMap == MAP1) {
+                            init_map1(); currentRoom1 = 0; activeMap = MAP1;
                             snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description1(0));
                             printf("Switched to MAP1: Starting at Room 0\n");
+                        } else if (newMap == MAP3) {
+                            init_map3(); currentRoom3 = 0; activeMap = MAP3;
+                            snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(0));
+                            printf("Switched to MAP3: Starting at Room 0\n");
                         }
-                    } else {
+                    } 
+                    else if (currentRoom2 == 0 && historyTop > 0) {  
+                        // In MAP2, room0 is the backward connector.
+                        MapState prev;
+                        if(popHistory(&prev)) {
+                            printf("MAP2 backward connector reached. Backtracking...\n");
+                            if(prev.map == MAP1) {
+                                init_map1(); currentRoom1 = prev.room; activeMap = MAP1;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description1(prev.room));
+                            } else if(prev.map == MAP2) {
+                                init_map2(); currentRoom2 = prev.room; activeMap = MAP2;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description2(prev.room));
+                            } else if(prev.map == MAP3) {
+                                init_map3(); currentRoom3 = prev.room; activeMap = MAP3;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(prev.room));
+                            }
+                        }
+                    } 
+                    else {
                         snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description2(currentRoom2));
                         printf("MAP2: Moved to Room %d\n", currentRoom2);
                     }
@@ -194,24 +261,45 @@ int main(void) {
                     snprintf(finalMsg, sizeof(finalMsg), "%s", get_fail_message2());
                     printf("MAP2: Move blocked. Message: %s\n", finalMsg);
                 }
-            } else if (activeMap == MAP3) {
+            }
+            // --- MAP3 branch ---
+            else if (activeMap == MAP3) {
                 int attemptedRoom = move_room3(currentRoom3, buffer[0]);
                 if (attemptedRoom != currentRoom3) {
                     currentRoom3 = attemptedRoom;
-                    // For MAP3, connector room is assumed at index 2.
-                    if (currentRoom3 == 2) {
-                        printf("MAP3 connector reached. Switching to next map...\n");
-                        activeMap = (activeMap + 1) % TOTAL_MAPS;
-                        if (activeMap == MAP1) {
-                            init_map1(); currentRoom1 = 0;
+                    if (currentRoom3 == 2) {  
+                        // Forward connector in MAP3.
+                        printf("MAP3 forward connector reached.\n");
+                        pushHistory(MAP3, 2);
+                        int newMap = get_random_map(MAP3);
+                        if (newMap == MAP1) {
+                            init_map1(); currentRoom1 = 0; activeMap = MAP1;
                             snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description1(0));
                             printf("Switched to MAP1: Starting at Room 0\n");
-                        } else if (activeMap == MAP2) {
-                            init_map2(); currentRoom2 = 0;
+                        } else if (newMap == MAP2) {
+                            init_map2(); currentRoom2 = 0; activeMap = MAP2;
                             snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description2(0));
                             printf("Switched to MAP2: Starting at Room 0\n");
                         }
-                    } else {
+                    }
+                    else if (currentRoom3 == 0 && historyTop > 0) {  
+                        // In MAP3, room0 is the backward connector.
+                        MapState prev;
+                        if(popHistory(&prev)) {
+                            printf("MAP3 backward connector reached. Backtracking...\n");
+                            if(prev.map == MAP1) {
+                                init_map1(); currentRoom1 = prev.room; activeMap = MAP1;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description1(prev.room));
+                            } else if(prev.map == MAP2) {
+                                init_map2(); currentRoom2 = prev.room; activeMap = MAP2;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description2(prev.room));
+                            } else if(prev.map == MAP3) {
+                                init_map3(); currentRoom3 = prev.room; activeMap = MAP3;
+                                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(prev.room));
+                            }
+                        }
+                    }
+                    else {
                         snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description3(currentRoom3));
                         printf("MAP3: Moved to Room %d\n", currentRoom3);
                     }
