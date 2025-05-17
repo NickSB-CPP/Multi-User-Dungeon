@@ -3,7 +3,6 @@
 #include <ctype.h>
 #include <string.h>
 #include <mosquitto.h>
-
 #ifdef _WIN32
 #include <conio.h>
 #else
@@ -13,28 +12,27 @@
 int getch(void) {
     struct termios oldt, newt;
     int ch;
-    tcgetattr(STDIN_FILENO, &oldt);        // save old terminal settings
+    tcgetattr(STDIN_FILENO, &oldt); // save old terminal settings
     newt = oldt;
-    newt.c_lflag &= ~(ICANON | ECHO);        // disable buffered input and echo
-    tcsetattr(STDIN_FILENO, TCSANOW, &newt);   // apply new settings
+    newt.c_lflag &= ~(ICANON | ECHO); // disable buffered input and echo
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt); // apply new settings
     ch = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);   // restore old settings
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt); // restore old settings
     return ch;
 }
 #endif
 
-// MQTT Configuration
-#define MQTT_BROKER ""  // e.g., "34.123.45.67"
+#define MQTT_BROKER "35.226.70.79" // Update to your MQTT broker IP
 #define MQTT_PORT 1883
 #define MQTT_TOPIC "dungeon/start"
 
 int main() {
     struct mosquitto *mosq = NULL;
     int ret;
-
+    
     /* Initialize the mosquitto library */
     mosquitto_lib_init();
-
+    
     /* Create a new mosquitto client instance */
     mosq = mosquitto_new(NULL, true, NULL);
     if (!mosq) {
@@ -49,10 +47,10 @@ int main() {
         mosquitto_destroy(mosq);
         return 1;
     }
-
+    
     /* Display the start menu on the console */
     printf("=====================================\n");
-    printf("         WELCOME TO THE DUNGEON      \n");
+    printf("  WELCOME TO THE DUNGEON\n");
     printf("=====================================\n\n");
     printf("You are about to embark on a mysterious journey\n");
     printf("through a labyrinth filled with hidden treasure.\n");
@@ -60,7 +58,7 @@ int main() {
     printf("To begin your adventure, press the [Z] key.\n");
     printf("This corresponds to pressing your joystick button on the ESP32 console.\n");
     printf("=====================================\n");
-
+    
     /* Wait for the user to press 'z' or 'Z' */
     char ch = 0;
     while (1) {
@@ -68,7 +66,6 @@ int main() {
         if (ch == 'z' || ch == 'Z')
             break;
     }
-    
     printf("\nStarting game...\n");
     
     /* Publish the start signal to the MQTT topic */

@@ -6,13 +6,14 @@
     If you want to update exe:
     Compile with: gcc -o dungeon dungeon.c -lmosquitto
 
+
     This server listens on TCP port 12345 for movement commands (n, s, e, w)
     from a client. Make sure you are listed at the right port to make it work
     the processes of the dungeon logic and sends back room descriptions to work
-    via the TCP socket. 
+    via the TCP socket.
    
     It also publishes the room description to the MQTT topic
-    "dungeon/room" using the Mosquitto library. 
+    "dungeon/room" using the Mosquitto library.
    
     In addition, it prints:
       - The move received on the terminal, so you can check the whole description,
@@ -20,252 +21,140 @@
         to the terminal.
 
 
+
+
     What is this file?
-    This is my map with a theme of being in a forest while you can find the treasure there
-    (that is my item.)
+    The game logic, right now making different maps is WIP
 */
+
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 #include <mosquitto.h>
-#include <errno.h>
+#include <time.h>
+#include "map.h"         // Contains our map and movement functions.
+#include "connector.h"   // Contains get_next_map().
+
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 #define PORT 12345
-#define MQTT_BROKER "GCP"  // Replace with your GCP external IP
-#define MQTT_PORT 1883
-#define MQTT_TOPIC "dungeon/room"
 
-// Define room types.
-typedef enum {
-    ROOM_TYPE_START,
-    ROOM_TYPE_TREASURE,
-    ROOM_TYPE_NORMAL,
-    ROOM_TYPE_CONNECTOR
-} RoomType;
+// Global MQTT settings.
+const char* MQTT_BROKER = "GCP IP";  // Update this with your broker IP.
+const int MQTT_PORT = 1883;
+const char* MQTT_TOPIC_ROOM = "dungeon/room";
 
-typedef struct Room {
-    int id;
-    RoomType type;
-    char description[512];
-    int north;
-    int east;
-    int south;
-    int west;
-} Room;
+struct mosquitto *mosq = NULL;
 
-// Set up the dungeon layout (10 rooms).
-void setupDungeon(Room dungeon[]) {
-    // Room 0: Start Room.
-    dungeon[0].id = 0;
-    dungeon[0].type = ROOM_TYPE_START;
-    strcpy(dungeon[0].description,
-      "You stand in a tranquil clearing, bathed in ghostly moonlight. Ancient trees block your way. To the north, a path beckons; to the south, a trail leads onward.");
-    dungeon[0].north = 1;
-    dungeon[0].east  = -1;
-    dungeon[0].south = 4;
-    dungeon[0].west  = -1;
-    
-    // Room 1: Normal Room.
-    dungeon[1].id = 1;
-    dungeon[1].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[1].description,
-      "You step onto a narrow, winding trail. Shadows twist among the trunks. A light glimmers to the east and a passage appears to the west.");
-    dungeon[1].north = -1;
-    dungeon[1].east  = 2;
-    dungeon[1].south = 0;
-    dungeon[1].west  = 9;
-    
-    // Room 9: Connector Room.
-    dungeon[9].id = 9;
-    dungeon[9].type = ROOM_TYPE_CONNECTOR;
-    strcpy(dungeon[9].description,
-      "You find yourself in a narrow corridor lit by an eerie glow. This passage serves as a gateway to the unknown.");
-    dungeon[9].north = -1;
-    dungeon[9].east  = 1;
-    dungeon[9].south = -1;
-    dungeon[9].west  = -1;
-    
-    // Room 2: Normal Room.
-    dungeon[2].id = 2;
-    dungeon[2].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[2].description,
-      "The forest opens into an enchanted grove. A hidden path to the east whispers of untold discoveries, while the path south seems familiar.");
-    dungeon[2].north = -1;
-    dungeon[2].east  = 5;
-    dungeon[2].south = 3;
-    dungeon[2].west  = 1;
-    
-    // Room 3: Normal Room.
-    dungeon[3].id = 3;
-    dungeon[3].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[3].description,
-      "The woods here have grown silent. Weathered stone markers hint at a long-forgotten past. A trail stretches further south, while the return is elusive.");
-    dungeon[3].north = 2;
-    dungeon[3].east  = -1;
-    dungeon[3].south = 4;
-    dungeon[3].west  = -1;
-    
-    // Room 4: Normal Room.
-    dungeon[4].id = 4;
-    dungeon[4].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[4].description,
-      "You wander onto a twisting trail where trees seem to conspire together. The path eventually circles back to the clearing.");
-    dungeon[4].north = 3;
-    dungeon[4].east  = -1;
-    dungeon[4].south = 0;
-    dungeon[4].west  = -1;
-    
-    // Room 5: Normal Room.
-    dungeon[5].id = 5;
-    dungeon[5].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[5].description,
-      "Venturing through a secret exit, you discover a hidden trail shimmering with golden luminescence. Only the intrepid may continue.");
-    dungeon[5].north = -1;
-    dungeon[5].east  = -1;
-    dungeon[5].south = 6;
-    dungeon[5].west  = 2;
-    
-    // Room 6: Normal Room.
-    dungeon[6].id = 6;
-    dungeon[6].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[6].description,
-      "The hidden path narrows into a dim corridor where even moonbeams struggle to penetrate. Gnarled roots and scattered stones make each step cautious.");
-    dungeon[6].north = 5;
-    dungeon[6].east  = -1;
-    dungeon[6].south = 7;
-    dungeon[6].west  = -1;
-    
-    // Room 7: Normal Room.
-    dungeon[7].id = 7;
-    dungeon[7].type = ROOM_TYPE_NORMAL;
-    strcpy(dungeon[7].description,
-      "Emerging into a secluded glade, you sense a mysterious magic. A solitary exit to the west hints at a secret domain.");
-    dungeon[7].north = -1;
-    dungeon[7].east  = -1;
-    dungeon[7].south = -1;
-    dungeon[7].west  = 8;
-    
-    // Room 8: Treasure Room.
-    dungeon[8].id = 8;
-    dungeon[8].type = ROOM_TYPE_TREASURE;
-    strcpy(dungeon[8].description,
-      "You have discovered the hidden grove filled with ancient relics and glittering jewels—a reward for your perseverance!");
-    dungeon[8].north = -1;
-    dungeon[8].east  = -1;
-    dungeon[8].south = -1;
-    dungeon[8].west  = -1;
+void publish_to_mqtt(const char* message) {
+    int ret = mosquitto_publish(mosq, NULL, MQTT_TOPIC_ROOM, strlen(message),
+                                message, 0, false);
+    if(ret != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Error publishing MQTT: %d\n", ret);
+    }
 }
 
-int main(void) {
-    srand((unsigned int)time(NULL));
-    Room dungeon[10];
-    setupDungeon(dungeon);
-    int currentRoom = 0;  // Start in Room 0
-
-    // --- MQTT Initialization ---
+int main() {
     mosquitto_lib_init();
-    struct mosquitto *mosq = mosquitto_new(NULL, true, NULL);
-    if (!mosq) {
-        fprintf(stderr, "Error: Could not create MQTT instance.\n");
+    mosq = mosquitto_new(NULL, true, NULL);
+    if(!mosq) {
+        fprintf(stderr, "Error: Could not create mosquitto instance.\n");
         return 1;
     }
-    if (mosquitto_connect(mosq, MQTT_BROKER, MQTT_PORT, 60) != MOSQ_ERR_SUCCESS) {
-        fprintf(stderr, "Error: Could not connect to MQTT Broker at %s:%d.\n", MQTT_BROKER, MQTT_PORT);
+    
+    if(mosquitto_connect(mosq, MQTT_BROKER, MQTT_PORT, 60) != MOSQ_ERR_SUCCESS) {
+        fprintf(stderr, "Error: Could not connect to MQTT broker.\n");
         mosquitto_destroy(mosq);
         return 1;
     }
-
-    // --- Setup TCP Socket ---
-    int server_fd, client_fd;
-    struct sockaddr_in server_addr, client_addr;
-    socklen_t client_len = sizeof(client_addr);
-
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Socket creation failed");
-        return 1;
+    
+    int server_fd, new_socket;
+    struct sockaddr_in address;
+    int addrlen = sizeof(address);
+    
+    if((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+        perror("socket failed");
+        exit(EXIT_FAILURE);
     }
+    
     int opt = 1;
     setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
-    if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Bind failed");
-        close(server_fd);
-        return 1;
-    }
-    if (listen(server_fd, 3) < 0) {
-        perror("Listen failed");
-        close(server_fd);
-        return 1;
-    }
-    printf("Server listening on port %d...\n", PORT);
-    fflush(stdout);
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
     
-    printf("Waiting for a client to connect...\n");
-    fflush(stdout);
-    
-    if ((client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len)) < 0) {
-        perror("Accept failed");
-        close(server_fd);
-        return 1;
+    if(bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
     }
-    printf("Client connected.\n");
-    fflush(stdout);
-
-    char command;
-    int quit = 0;
-    while (!quit) {
-        int bytes_received = recv(client_fd, &command, 1, 0);
-        if (bytes_received <= 0) {
-            perror("Error reading from client or client disconnected");
-            break;
+    
+    if(listen(server_fd, 3) < 0) {
+        perror("listen failed");
+        exit(EXIT_FAILURE);
+    }
+    
+    srand(time(NULL));  // Seed random generator.
+    
+    int currentMap = MAP1;  // Using MAP1.
+    init_map1();            // Initialize map1.
+    
+    printf("Dungeon Game Logic Server started. Listening on port %d\n", PORT);
+    
+    while (1) {
+        if((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+            perror("accept");
+            exit(EXIT_FAILURE);
         }
-        // Print which move was received.
-        printf("Move received: %c\n", command);
-        fflush(stdout);
-
-        int nextRoom = currentRoom;
-        switch (command) {
-            case 'n': case 'N': nextRoom = dungeon[currentRoom].north; break;
-            case 's': case 'S': nextRoom = dungeon[currentRoom].south; break;
-            case 'e': case 'E': nextRoom = dungeon[currentRoom].east;  break;
-            case 'w': case 'W': nextRoom = dungeon[currentRoom].west;  break;
-            case 'q': case 'Q': quit = 1; break;
-            default: break;
+        
+        char buffer[1024] = {0};
+        int valread = read(new_socket, buffer, 1024);
+        if(valread <= 0) {
+            close(new_socket);
+            continue;
         }
-        if (nextRoom == -1) {
-            const char *msg = "No path in that direction!";
-            send(client_fd, msg, strlen(msg), 0);
-            mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(msg), msg, 0, false);
-            printf("Room message: %s\n", msg);
-            fflush(stdout);
-        } else {
-            currentRoom = nextRoom;
-            char buffer[1024];
-            snprintf(buffer, sizeof(buffer), "%s\n", dungeon[currentRoom].description);
-            send(client_fd, buffer, strlen(buffer), 0);
-            mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(buffer), buffer, 0, false);
-            // Print the entered room information.
-            //printf("Entered Room %d: %s", dungeon[currentRoom].id, buffer);
-            fflush(stdout);
-            if (dungeon[currentRoom].type == ROOM_TYPE_TREASURE) {
-                const char *winMsg = "Treasure found! Game Over.";
-                send(client_fd, winMsg, strlen(winMsg), 0);
-                mosquitto_publish(mosq, NULL, MQTT_TOPIC, strlen(winMsg), winMsg, 0, false);
-                printf("Room message: %s\n", winMsg);
-                fflush(stdout);
-                break;
+        
+        printf("Received command: %s\n", buffer);
+        char finalMsg[1024] = "";
+        int processed = 0;
+        
+        // Handling connector command (if applicable).
+        if(buffer[0] == 'C') {
+            int newMap = get_next_map(currentMap);
+            currentMap = newMap;
+            init_map1(); // For simplicity.
+            snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description(currentRoom));
+            processed = 1;
+        }
+        // Handling directional commands.
+        else if(buffer[0] == 'n' || buffer[0] == 'e' || buffer[0] == 's' || buffer[0] == 'w') {
+            int oldRoom = currentRoom;
+            int attemptedRoom = move_room(currentRoom, buffer[0]);
+            if(attemptedRoom != currentRoom) {
+                currentRoom = attemptedRoom;
+                snprintf(finalMsg, sizeof(finalMsg), "%s", get_room_description(currentRoom));
+                printf("Moving from %s to %s\n", map1_rooms[oldRoom].name, map1_rooms[currentRoom].name);
+            } else {
+                // Movement blocked; get a randomized failure message.
+                const char* failMsg = get_fail_message();
+                snprintf(finalMsg, sizeof(finalMsg), "%s", failMsg);
+                printf("Movement blocked: %s\n", failMsg);
             }
+            processed = 1;
         }
+        
+        if(processed) {
+            publish_to_mqtt(finalMsg);
+            send(new_socket, finalMsg, strlen(finalMsg), 0);
+        }
+        
+        close(new_socket);
+        mosquitto_loop(mosq, 10, 1);
     }
-
-    close(client_fd);
-    close(server_fd);
+    
     mosquitto_disconnect(mosq);
     mosquitto_destroy(mosq);
     mosquitto_lib_cleanup();
