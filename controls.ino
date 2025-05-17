@@ -3,105 +3,69 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-int speed_Adjust = 400; // speed of text scroll
-int rest_Time = 2000;    // resting time of text animation at edge of display
-
-//===== WiFi Credentials =====
-<<<<<<< HEAD
-const char* ssid = "";
-const char* password = "";
-
-//===== Server (Game Logic) Settings =====
-const char* serverIP = "";
+//===== WiFi and Server Settings =====
+const char* ssid = "ssid";
+const char* password = "pass";
+const char* serverIP   = "gspip";
 const uint16_t serverPort = 12345;
 
-//===== MQTT Broker Settings =====
-const char* mqttBroker = "";
-=======
-const char* ssid = "wifi ssid";
-const char* password = "wifi pass";
-
-//===== Server (Game Logic) Settings =====
-const char* serverIP = "gcp ip";
-const uint16_t serverPort = 12345;
-
-//===== MQTT Broker Settings =====
-const char* mqttBroker = "gcp ip if broker shares same ip";
->>>>>>> 266885c4a9a8c9afe37e185ff6424c99d916c07c
-const uint16_t mqttPort = 1883;
-const char* mqttTopic  = "dungeon/room";
+const char* mqttBroker = "mqtt ip (Same as gsp if mqtt on gsp";
+const uint16_t mqttPort  = 1883;
+const char* mqttTopic    = "dungeon/room";
 
 //===== Joystick Pins =====
 const int xPin = 14;
 const int yPin = 13;
 const int zPin = 12;
 
-//===== Joystick Thresholds =====
+//===== Thresholds =====
 const int northThreshold = 200;
 const int southThreshold = 800;
 const int westThreshold  = 200;
 const int eastThreshold  = 800;
-
-//===== Dead Zone =====
 const int deadMin = 350;
 const int deadMax = 650;
 
-//===== I2C LCD Setup =====
+//===== LCD Setup =====
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
-//===== Clients =====
+//===== Network Clients =====
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 WiFiClient socketClient;
 
-//===== Scroll Function =====
-void scrollText(String text, int line = 1) {
-  int len = text.length();
-  int width = 16;
-
-  if (len <= width) {
-    lcd.setCursor(0, line);
-    lcd.print(text);
-    delay(rest_Time);
-    return;
-  }
-
-  // Scroll right
-  for (int i = 0; i <= len - width; i++) {
-    lcd.setCursor(0, line);
-    lcd.print(text.substring(i, i + width));
-    delay(speed_Adjust);
-  }
-
-  delay(rest_Time); // pause at end
-
-  // Scroll left
-  for (int i = len - width - 1; i >= 0; i--) {
-    lcd.setCursor(0, line);
-    lcd.print(text.substring(i, i + width));
-    delay(speed_Adjust);
-  }
-
-  delay(rest_Time); // pause at start
-}
+//===== Scroll State =====
+String currentMessage = "";
+unsigned long lastScrollTime = 0;
+int scrollIndex = 0;
+bool scrollingForward = true;
+const int scrollDelay = 300;
+const int restDelay = 1000;
+unsigned long scrollPauseUntil = 0;
 
 //===== MQTT Callback =====
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  String message(reinterpret_cast<char*>(payload), length);
+  currentMessage = "";
+  for (unsigned int i = 0; i < length; i++) {
+    currentMessage += (char)payload[i];
+  }
 
-  Serial.print("Room: ");
-  Serial.println(message);
+  Serial.print("MQTT Received: ");
+  Serial.println(currentMessage);
+
+  scrollIndex = 0;
+  scrollingForward = true;
+  scrollPauseUntil = millis() + restDelay;
 
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Room:");
-  scrollText(message, 1);
 }
 
-//===== Reconnect MQTT =====
+//===== MQTT Reconnect =====
 void reconnectMQTT() {
   while (!mqttClient.connected()) {
-    if (mqttClient.connect("ESP32S3_Controller")) {
+    if (mqttClient.connect("ESP32_Controller")) {
       mqttClient.subscribe(mqttTopic);
     } else {
       delay(2000);
@@ -113,8 +77,7 @@ void reconnectMQTT() {
 void setup() {
   Serial.begin(115200);
   analogReadResolution(10);
-
-  pinMode(zPin, INPUT_PULLUP); // Initialize joystick button
+  pinMode(zPin, INPUT_PULLUP);
 
   Wire.begin(10, 9);
   lcd.init();
@@ -132,10 +95,47 @@ void setup() {
     socketClient.write("S");
   }
 
-  delay(1000);
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("Use Joystick");
+}
+
+//===== Scroll Update =====
+void updateScrollingText() {
+  unsigned long now = millis();
+  int width = 16;
+  int len = currentMessage.length();
+
+  if (len <= width) {
+    lcd.setCursor(0, 1);
+    lcd.print(currentMessage);
+    return;
+  }
+
+  if (now < scrollPauseUntil) return;
+
+  if (now - lastScrollTime >= scrollDelay) {
+    lcd.setCursor(0, 1);
+    lcd.print(currentMessage.substring(scrollIndex, scrollIndex + width));
+
+    if (scrollingForward) {
+      scrollIndex++;
+      if (scrollIndex > len - width) {
+        scrollIndex = len - width;
+        scrollingForward = false;
+        scrollPauseUntil = now + restDelay;
+      }
+    } else {
+      scrollIndex--;
+      if (scrollIndex < 0) {
+        scrollIndex = 0;
+        scrollingForward = true;
+        scrollPauseUntil = now + restDelay;
+      }
+    }
+
+    lastScrollTime = now;
+  }
 }
 
 //===== Main Loop =====
@@ -145,42 +145,44 @@ void loop() {
   }
   mqttClient.loop();
 
+  // Non-blocking text scroll
+  updateScrollingText();
+
   int xVal = analogRead(xPin);
   int yVal = analogRead(yPin);
   int zVal = digitalRead(zPin);
 
-  Serial.print("X: ");
-  Serial.print(xVal);
-  Serial.print(" | Y: ");
-  Serial.print(yVal);
-  Serial.print(" | Z: ");
-  Serial.println(zVal);
-
-  static bool joystickMoved = false;
-  char command = '\0';
-
-  bool inDeadZone = (xVal >= deadMin && xVal <= deadMax && yVal >= deadMin && yVal <= deadMax);
-
-  if (yVal < northThreshold) {
-    command = 'n';
-  } else if (yVal > southThreshold) {
-    command = 's';
-  } else if (xVal < westThreshold) {
-    command = 'w';
-  } else if (xVal > eastThreshold) {
-    command = 'e';
+  static bool buttonPressed = false;
+  if (zVal == LOW && !buttonPressed) {
+    Serial.println("Joystick Button Pressed");
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("Button Pressed");
+    buttonPressed = true;
+  } else if (zVal == HIGH) {
+    buttonPressed = false;
   }
 
-  if (command != '\0' && !joystickMoved && !inDeadZone) {
-    String direction = "";
+  char command = '\0';
+  bool inDeadZone = (xVal >= deadMin && xVal <= deadMax && yVal >= deadMin && yVal <= deadMax);
+
+  if (!inDeadZone) {
+    if (yVal < northThreshold) command = 'n';
+    else if (yVal > southThreshold) command = 's';
+    else if (xVal < westThreshold) command = 'w';
+    else if (xVal > eastThreshold) command = 'e';
+  }
+
+  if (command != '\0') {
+    String direction;
     switch (command) {
       case 'n': direction = "North"; break;
       case 's': direction = "South"; break;
-      case 'w': direction = "West";  break;
-      case 'e': direction = "East";  break;
+      case 'w': direction = "West"; break;
+      case 'e': direction = "East"; break;
     }
 
-    Serial.print("Move: ");
+    Serial.print("Direction Command: ");
     Serial.println(direction);
 
     lcd.clear();
@@ -189,26 +191,21 @@ void loop() {
     lcd.setCursor(0, 1);
     lcd.print(direction);
 
-    delay(2000);
-
-    if (socketClient.connected()) {
-      socketClient.write(command);
-    } else {
+    if (!socketClient.connected()) {
       socketClient.stop();
-      delay(1000);
-      if (socketClient.connect(serverIP, serverPort)) {
-        socketClient.write("S");
-        socketClient.write(command);
-      }
+      delay(100);
+      socketClient.connect(serverIP, serverPort);
     }
 
-    joystickMoved = true;
-    delay(200);
+    socketClient.write(command);
+
+    // Reset scroll after move
+    lcd.setCursor(0, 0);
+    lcd.print("Room:");
+    scrollIndex = 0;
+    scrollingForward = true;
+    scrollPauseUntil = millis() + restDelay;
   }
 
-  if (inDeadZone) {
-    joystickMoved = false;
-  }
-
-  delay(100);
+  delay(50);
 }
