@@ -22,7 +22,7 @@
 #include <errno.h>
 
 #define PORT 12345
-#define MQTT_BROKER "34.70.43.249"  // Replace with your GCP external IP
+#define MQTT_BROKER "35.188.222.48"  // Replace with your GCP external IP
 #define MQTT_PORT 1883
 #define MQTT_TOPIC "dungeon/room"
 
@@ -51,103 +51,112 @@ void setupDungeon(Room dungeon[]) {
     dungeon[0].type = ROOM_TYPE_START;
     strcpy(dungeon[0].description,
       "In a cramped, dark room, all you can feel is the stone walls around you. The air thickens, distant clanks of metal and footsteps echo in the distance.");
-    dungeon[0].north = 1;
+    dungeon[0].north = -1;
     dungeon[0].east  = -1;
-    dungeon[0].south = 4;
+    dungeon[0].south = 1;
     dungeon[0].west  = -1;
     
     // Room 1: Normal Room.
     dungeon[1].id = 1;
     dungeon[1].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[1].description,
-      "You step outside, you can feel the breeze. Despite that, no light is present. Shuffling around, you find you are surrounded by that same stone walls and an arrow on a target.");
+      "You step outside, you can feel the breeze. Despite that, no light is present. Shuffling around, you find you are surrounded by stone walls and you feel an arrow on a target.");
     dungeon[1].north = -1;
-    dungeon[1].east  = 2;
-    dungeon[1].south = 0;
-    dungeon[1].west  = 9;
+    dungeon[1].east  = 3;
+    dungeon[1].south = 2;
+    dungeon[1].west  = -1;
     
     // Room 9: Connector Room.
     dungeon[9].id = 9;
     dungeon[9].type = ROOM_TYPE_CONNECTOR;
     dungeon[9].north = -1;
-    dungeon[9].east  = 1;
-    dungeon[9].south = -1;
+    dungeon[9].east  = -1;
+    dungeon[9].south = 1;
     dungeon[9].west  = -1;
     
     // Room 2: Normal Room.
     dungeon[2].id = 2;
     dungeon[2].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[2].description,
-      "You step out and feel a chair and a table. Putting your hand and moving across the table, it is incredibly long, as if it was made for an army. Where is everyone?");
-    dungeon[2].north = -1;
-    dungeon[2].east  = 5;
-    dungeon[2].south = 3;
-    dungeon[2].west  = 1;
+      "You step out and feel a chair and the edge of a table. Putting your hand and moving across the table, it is incredibly long, as if it was made for an army. Where is everyone?");
+    dungeon[2].north = 1;
+    dungeon[2].east  = 7;
+    dungeon[2].south = 6;
+    dungeon[2].west  = -1;
     
     // Room 3: Normal Room.
     dungeon[3].id = 3;
     dungeon[3].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[3].description,
-      "Into a corridor you go. Moving your hand along the wall, you feel paintings. You retract it to not potentially damage them. ");
-    dungeon[3].north = 2;
-    dungeon[3].east  = -1;
-    dungeon[3].south = 4;
-    dungeon[3].west  = -1;
+      "Into a corridor you go. Moving your hand along the wall, you feel paintings. You retract it to not potentially damage them. You smell smoke to the west. ");
+    dungeon[3].north = 4;
+    dungeon[3].east  = 5;
+    dungeon[3].south = -1;
+    dungeon[3].west  = 1;
     
     // Room 4: Normal Room.
     dungeon[4].id = 4;
-    dungeon[4].type = ROOM_TYPE_NORMAL;
+    dungeon[4].type = ROOM_TYPE_TREASURE;
     strcpy(dungeon[4].description,
-      "You wander onto a twisting trail where trees seem to conspire together. The path eventually circles back to the clearing.");
-    dungeon[4].north = 3;
+      "Ancient relics, weapons, gold... As you approach the room, you finally see light... As the moon shines upon all the metal before you... Your journey is finally over.");
+    dungeon[4].north = -1;
     dungeon[4].east  = -1;
-    dungeon[4].south = 0;
+    dungeon[4].south = -1;
     dungeon[4].west  = -1;
     
     // Room 5: Normal Room.
     dungeon[5].id = 5;
     dungeon[5].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[5].description,
-      "Venturing through a secret exit, you discover a hidden trail shimmering with golden luminescence. Only the intrepid may continue.");
-    dungeon[5].north = -1;
-    dungeon[5].east  = -1;
-    dungeon[5].south = 6;
-    dungeon[5].west  = 2;
+      "You hear chains hanging and clanking. You hear... no feel breathing? And heat coming from the breath? Hearing low rumbling sounds and huffs, it may be in your best interest TO NOT GO WEST.");
+    dungeon[5].north = 8;
+    dungeon[5].east  = 3;
+    dungeon[5].south = 7;
+    dungeon[5].west  = 10;
     
     // Room 6: Normal Room.
     dungeon[6].id = 6;
     dungeon[6].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[6].description,
-      "The hidden path narrows into a dim corridor where even moonbeams struggle to penetrate. Gnarled roots and scattered stones make each step cautious.");
-    dungeon[6].north = 5;
+      "Entering from the kitchen, you feel around and find a blanket. Clearly, you have reached a resting point. A voice in your head tells you to lie down. You are so so tried. However, you must turn around and press on.");
+    dungeon[6].north = 2;
     dungeon[6].east  = -1;
-    dungeon[6].south = 7;
+    dungeon[6].south = -1;
     dungeon[6].west  = -1;
     
     // Room 7: Normal Room.
     dungeon[7].id = 7;
     dungeon[7].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[7].description,
-      "Emerging into a secluded glade, you sense a mysterious magic. A solitary exit to the west hints at a secret domain.");
-    dungeon[7].north = -1;
-    dungeon[7].east  = -1;
+      "Stepping down slowly, holding onto the railing, you find the rails end and so do the steps. You smell smoke to the north, but almost trip over shackles and chains. Then, you bump into legs... hanging from the ceiling? Best not to stay long...");
+    dungeon[7].north = 5;
+    dungeon[7].east  = 2;
     dungeon[7].south = -1;
-    dungeon[7].west  = 8;
+    dungeon[7].west  = -1;
     
     // Room 8: Treasure Room.
     dungeon[8].id = 8;
-    dungeon[8].type = ROOM_TYPE_TREASURE;
+    dungeon[8].type = ROOM_TYPE_NORMAL;
     strcpy(dungeon[8].description,
-      "Ancient relics, weapons, gold... As you approach the room, you finally see light... As the moon shines upon all the metal before you... Your journey is finally over.");
+      "Smelling smoke behind you, you climb stairs around the stone wall. From there, you feel the outside breeze once more. You can intuitively tell you are on the roof. Do you go back or push forward?");
     dungeon[8].north = -1;
     dungeon[8].east  = -1;
-    dungeon[8].south = -1;
-    dungeon[8].west  = -1;
+    dungeon[8].south = 5;
+    dungeon[8].west  = 9;
+
+    dungeon[10].id = 8;
+    dungeon[10].type = ROOM_TYPE_TREASURE;
+    strcpy(dungeon[10].description,
+      "YOU DIED");
+    dungeon[10].north = -1;
+    dungeon[10].east  = -1;
+    dungeon[10].south = 5;
+    dungeon[10].west  = 9;
 }
 
 int main(void) {
     srand((unsigned int)time(NULL));
-    Room dungeon[10];
+    Room dungeon[11];  // Create an array of 11 rooms
     setupDungeon(dungeon);
     int currentRoom = 0;  // Start in Room 0
 
