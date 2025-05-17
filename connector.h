@@ -1,7 +1,7 @@
 #ifndef CONNECTOR_H
 #define CONNECTOR_H
 
-// Returns a new map ID that is different from the currentMap.
+// Returns the next map ID in cyclic order.
 int get_next_map(int currentMap);
 
 #endif
