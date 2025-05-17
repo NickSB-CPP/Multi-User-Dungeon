@@ -35,16 +35,16 @@ int player_count = 0;
 struct mosquitto *mosq;
 
 void init_rooms() {
-    rooms[0] = (struct Room){"", 1, -1, -1, -1};
-    rooms[1] = (struct Room){"", 2, 0, -1, -1};
-    rooms[2] = (struct Room){"", -1, 1, 3, -1};
-    rooms[3] = (struct Room){"", -1, -1, 4, 2};
-    rooms[4] = (struct Room){"", 5, -1, -1, 3};
-    rooms[5] = (struct Room){"", -1, 4, 6, -1};
-    rooms[6] = (struct Room){"", -1, -1, 7, 5};
-    rooms[7] = (struct Room){"", -1, -1, 8, 6};
-    rooms[8] = (struct Room){"", -1, -1, 9, 7};
-    rooms[9] = (struct Room){"", -1, -1, -1, 8};
+    rooms[0] = (struct Room){"Start Room", "You are in a prison cell. You see ", 1, -1, -1, -1};
+    rooms[1] = (struct Room){"Dark Hallway", "The hallway is pitch black with dripping water.", 2, 0, -1, -1};
+    rooms[2] = (struct Room){"Prison Cell", "Cobwebs cover every inch of this room.", -1, 1, 3, -1};
+    rooms[3] = (struct Room){"Collapsed Tunnel", "You see a blocked passage to the north.", -1, -1, 4, 2};
+    rooms[4] = (struct Room){"Connector Room", "A central hub with paths in every direction.", 5, -1, -1, 3};
+    rooms[5] = (struct Room){"Item Room", "A glowing sword lies in the center.", -1, 4, 6, -1};
+    rooms[6] = (struct Room){"Lava Chamber", "Hot steam makes it hard to breathe.", -1, -1, 7, 5};
+    rooms[7] = (struct Room){"Bridge Room", "A wooden bridge crosses a deep chasm.", -1, -1, 8, 6};
+    rooms[8] = (struct Room){"Statue Room", "Stone statues stare at you ominously.", -1, -1, 9, 7};
+    rooms[9] = (struct Room){"Dead End", "A wall. Nothing here but dust.", -1, -1, -1, 8};
 }
 
 int find_or_add_player(const char *id) {
@@ -68,7 +68,15 @@ int move_player(int room_id, const char *dir) {
     if (strcmp(dir, "S") == 0 && rooms[room_id].south != -1) return rooms[room_id].south;
     if (strcmp(dir, "E") == 0 && rooms[room_id].east != -1) return rooms[room_id].east;
     if (strcmp(dir, "W") == 0 && rooms[room_id].west != -1) return rooms[room_id].west;
-    return room_id; // invalid move, stay in place
+    return -1; // invalid move
+}
+
+void send_invalid_move(const char *player_id) {
+    char topic[64];
+    snprintf(topic, sizeof(topic), "game/%s/roomdesc", player_id);
+    const char *msg = "You can't go that way.";
+    printf("Publishing to topic: %s -> %s\n", topic, msg);
+    mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 0, false);
 }
 
 int main() {
@@ -115,9 +123,16 @@ int main() {
         if (sscanf(buffer, "{\"player\":\"%15[^\"]\",\"cmd\":\"%3[^\"]\"}", player, cmd) == 2) {
             printf("Parsed move: player=%s, cmd=%s\n", player, cmd); // DEBUG
             int idx = find_or_add_player(player);
-            int new_room = move_player(players[idx].current_room, cmd);
-            players[idx].current_room = new_room;
-            send_room_description(player, new_room);
+            int old_room = players[idx].current_room;
+            int new_room = move_player(old_room, cmd);
+            if (new_room != -1 && new_room != old_room) {
+                printf("Player %s moved from %s to %s\n", player, rooms[old_room].name, rooms[new_room].name);
+                players[idx].current_room = new_room;
+                send_room_description(player, new_room);
+            } else {
+                printf("Player %s tried to go %s from %s but couldn't.\n", player, cmd, rooms[old_room].name);
+                send_invalid_move(player);
+            }
         } else {
             fprintf(stderr, "Invalid command format: %s\n", buffer);
         }
