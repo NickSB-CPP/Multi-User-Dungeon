@@ -44,7 +44,7 @@ void setupRoomsA(Room dungeon[]) {
 
     dungeon[8].id = 8;
     dungeon[8].type = ROOM_TYPE_TREASURE;
-    strcpy(dungeon[8].description, "The chairs and phones are intact, but dust-covered. One phone receiver is off the hook, and if picked up, a voice whispers faintly. The logbook has a name circled repeatedly with the word \"DENIED.\"");
+    strcpy(dungeon[8].description, "You found hidden treasure room! You see a key attached to a chain and a door at the end of the room. The key is engraved with the words 'The key to freedom lies within.'");
     dungeon[8].west = 7; dungeon[8].north = -1; dungeon[8].south = -1; dungeon[8].east = -1;
 
     dungeon[9].id = 9;
